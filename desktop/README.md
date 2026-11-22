@@ -9,7 +9,7 @@ the system browser.
 ## Downloads and installation
 
 Download an installer from the [Primeboard download page](https://primeboard.jacksonwalters.com/download.html)
-or the [public release](https://github.com/jacksonwalters/primeboard/releases/tag/v1.3.0).
+or the [public release](https://github.com/jacksonwalters/primeboard/releases/tag/v1.3.2).
 No GitHub account is needed. Choose the package for your computer:
 
 | Computer | Download | Installation |
@@ -21,7 +21,7 @@ ZIP bundles are also produced for both targets. Extract the entire archive
 and run `Primeboard`.
 Keep the accompanying runtime files with the executable. Linux packages are the
 preferred installation route because the package manager resolves dependencies.
-For a downloaded Debian package, `sudo apt install ./Primeboard-1.3.0-Linux-arm64.deb`
+For a downloaded Debian package, `sudo apt install ./Primeboard-1.3.2-Linux-arm64.deb`
 installs the Pi build (use the actual downloaded filename).
 
 Releases do not auto-update yet; installing a newer version retains the app's
@@ -66,13 +66,21 @@ though the operating system must recognize the device. The Pi needs a working
 desktop session and audio output. Hardware MIDI and audio latency should be
 checked on the actual Pi and controller.
 
+The keyboard's volume knob (CC7) controls Sound volume and updates the on-screen
+slider, including during songs and fullscreen. The M-Audio Keystation Mini 32
+MK3 uses this assignment by default. Volume changes do not alter the note mapping
+or visualizations and are not stored as recording events.
+
 Saved recordings and device calibration live in the desktop app's profile,
 separately from browser storage. Linux uses `$XDG_CONFIG_HOME/Primeboard`,
 normally `~/.config/Primeboard`.
 
 Video, replay-file, and image exports use a native Save dialog. The instrument's
-existing save/replace confirmations remain in place. Fullscreen is available in
-the View menu; press Alt to show the menu bar on Linux.
+existing save/replace confirmations remain in place. The expand button in the
+visualization opens playable fullscreen; Show keyboard restores the touch keys,
+and Escape or the exit button returns to the regular view without clearing notes.
+Whole-window fullscreen is also available in the View menu; press Alt to show the
+menu bar on Linux.
 
 ## Development and builds
 
