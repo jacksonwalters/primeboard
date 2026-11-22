@@ -141,7 +141,16 @@ consecutive notes, including black keys, map to Cantor’s 31 prefixes and the
 empty set. The other views use the first 26 notes and ignore the remaining six.
 Out-of-range notes are ignored. These are input addresses: the existing pitches
 and Cantor set operations remain unchanged. Positive velocity has fixed initial
-strength; pitch bend and other expression messages are ignored.
+strength; pitch bend and expression (CC11) are ignored.
+
+The selected keyboard’s volume knob (CC7, including the Keystation Mini 32 MK3’s
+default assignment) controls master sound volume. Its full 0–127 range maps to
+the existing 0–50% gain range, with the slider and percentage following the knob.
+All MIDI channels control the same master volume; pitches, input strengths, and
+visualizations are unaffected. The knob also works during song playback and in
+fullscreen, and it does not unmute Sound off. Keep this window focused to use it.
+Like the on-screen slider, volume changes are not stored as recording events;
+video export uses the volume selected when export starts.
 
 Note-off and zero-velocity note-on release notes. CC64 provides channel-specific
 pedal sustain that keeps modal drivers on (or retains Number exponents); the on-screen Sustain button can
@@ -149,8 +158,9 @@ also retain notes after the pedal lifts. CC123 releases notes through sustain,
 and CC120 force-releases the channel. MIDI, QWERTY, and pointer sources cannot
 release one another’s notes. Switching or unplugging a device clears its held
 and sustained notes; reconnecting restores its calibration. Clear, focus loss,
-view changes, and starting playback reset MIDI input. Playback and video export
-block live MIDI. MIDI uses the existing recording and audio paths.
+view changes, and starting playback reset MIDI input. Playback blocks live notes;
+video export blocks live notes and volume changes. MIDI uses the existing
+recording and audio paths.
 
 `tests/midi.test.mjs` exercises simulated ports with the real instrument,
 recording, and Cantor audio projection. Physical USB hardware still needs a

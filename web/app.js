@@ -10,6 +10,7 @@ import { Instrument, fitKeyWeights } from './instrument.js';
 import { bindPointerKeyboard } from './pointer-keyboard.js';
 import { bindVisualizationFullscreen } from './fullscreen.js';
 import { Synth } from './audio.js';
+import { setSoundVolume } from './volume-control.js';
 import { shouldUnlockAudio } from './audio-gesture.js';
 import { SONGS, SongPlayer, songSpectrum, songFrames } from './song.js';
 import { MODES } from './plate-modes.js';
@@ -417,6 +418,11 @@ function bindMidi() {
   midi = new MidiController({
     requestAccess: navigator.requestMIDIAccess?.bind(navigator), storage,
     onPress: press, onRelease: release, onChange: renderMidiControls,
+    onVolume: value => {
+      if (!document.hidden && document.hasFocus() && !videoExport) {
+        setSoundVolume(synth, $('volume'), $('volume-value'), value * Number($('volume').max) / 100);
+      }
+    },
     canPlay: () => !document.hidden && document.hasFocus() && !videoExport && takeOver(),
   });
   $('midi-connect').addEventListener('click', async () => {
@@ -792,7 +798,7 @@ function bindInputs() {
     instrument.setHoldMs(ms, performance.now()); $('hold-value').textContent = `${(ms / 1000).toFixed(2)} s`;
   });
   $('volume').addEventListener('input', event => {
-    synth.setVolume(Number(event.target.value) / 100); $('volume-value').textContent = `${event.target.value}%`;
+    setSoundVolume(synth, $('volume'), $('volume-value'), Number(event.target.value) / 100);
   });
   for (const id of ['copy']) {
     const button = $(id);

@@ -5,6 +5,8 @@ import { Instrument, fitKeyWeights } from '../web/instrument.js';
 import { cantorSelection, cantorAudioWeights } from '../web/cantor.js';
 import { PerformanceRecorder, recordingSong } from '../web/recording.js';
 import { songFrames } from '../web/song.js';
+import { Synth } from '../web/audio.js';
+import { setSoundVolume } from '../web/volume-control.js';
 
 class Input extends EventTarget {
   constructor(id = 'keyboard') { super(); this.id = id; this.name = id; this.state = 'connected'; this.opens = 0; this.closes = 0; }
@@ -20,18 +22,19 @@ const memoryStorage = () => {
   const values = new Map();
   return { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
 };
-async function rig({ access = new Access(), storage = memoryStorage(), count = 32 } = {}) {
+async function rig({ access = new Access(), storage = memoryStorage(), count = 32, onVolume } = {}) {
   const instrument = new Instrument(32);
   let allowed = true, now = 0;
-  const requests = [];
+  const requests = [], volumes = [];
   const midi = new MidiController({
     requestAccess: async options => { requests.push(options); return access; }, storage,
     onPress: (index, source) => index < count && instrument.press(index, source, now),
     onRelease: (source, options) => instrument.release(source, options),
+    onVolume: value => { volumes.push(value); onVolume?.(value); },
     canPlay: () => allowed,
   });
   await midi.connect();
-  return { midi, access, instrument, requests, storage, input: midi.input,
+  return { midi, access, instrument, requests, storage, volumes, input: midi.input,
     allow: value => { allowed = value; }, time: value => { now = value; },
     calibrate: (note = 48) => midi.input.send(0x90, note, 100),
   };
@@ -67,6 +70,69 @@ test('all 32 keys map in order; out-of-range notes and repeated note-ons do not 
   for (let i=0;i<32;i++) r.input.send(i%2 ? 0x80 : 0x90,40+i,0);
   assert.ok(r.instrument.exponents.every(value => value === 0));
   assert.equal(r.instrument.sources.size, 0);
+});
+
+test('CC7 controls smoothed master volume across its full range and keeps the slider in sync', async () => {
+  const synth = new Synth(), slider = { max: '50', value: '25' }, readout = { textContent: '25%' };
+  const gainChanges = [];
+  synth.context = { currentTime: 12 };
+  synth.master = { gain: { setTargetAtTime: (...args) => gainChanges.push(args) } };
+  synth.enabled = true;
+  const r = await rig({ onVolume: value => setSoundVolume(synth, slider, readout, value * Number(slider.max) / 100) });
+  r.calibrate(); r.input.send(0x90, 48, 100);
+  const originalLevels = [...r.instrument.levels], originalWeights = [...r.instrument.exponents];
+  for (let value = 0; value < 128; value++) {
+    // Volume from any channel of the selected keyboard controls the master.
+    r.input.send(0xb0 + value % 16, 7, value);
+    assert.ok(Math.abs(synth.volume - value / 127 * 0.5) < 1e-15);
+    assert.equal(slider.value, String(Math.round(value / 127 * 50)));
+    assert.equal(readout.textContent, `${slider.value}%`);
+    assert.deepEqual(gainChanges.at(-1), [synth.volume, 12, 0.02]);
+  }
+  assert.equal(r.volumes.length, 128);
+  assert.equal(new Set(gainChanges.map(([gain]) => gain)).size, 128, 'keep MIDI resolution in the sound');
+  assert.deepEqual(r.instrument.levels, originalLevels);
+  assert.deepEqual(r.instrument.exponents, originalWeights);
+  assert.equal(r.instrument.held.size, 1);
+  setSoundVolume(synth, slider, readout, 0.2); // Manual slider can take over again.
+  assert.equal(synth.volume, 0.2); assert.equal(slider.value, '20'); assert.equal(readout.textContent, '20%');
+  synth.enabled = false; r.input.send(0xb0, 7, 127);
+  assert.equal(synth.enabled, false, 'moving the knob must not unmute sound');
+});
+
+test('volume works during calibration and playback without running the live-note takeover gate', async () => {
+  const r = await rig();
+  r.midi.canPlay = () => { throw new Error('Volume must not take over a song'); };
+  r.input.send(0xb0, 7, 64);
+  assert.deepEqual(r.volumes, [64 / 127]);
+  assert.equal(r.midi.learning, true); assert.equal(r.midi.firstNote, null);
+  r.calibrate();
+  r.midi.canPlay = () => false;
+  r.input.send(0x90, 48, 100); r.input.send(0xb0, 7, 0);
+  assert.deepEqual(r.volumes, [64 / 127, 0]);
+  assert.ok(r.instrument.exponents.every(value => value === 0));
+});
+
+test('malformed volume data and unrelated MIDI controls cannot adjust the volume', async () => {
+  const r = await rig(); r.calibrate();
+  for (const data of [[0xb0, 7], [0xb0, 7, 0, 0], [0xb0, 7, -1], [0xb0, 7, 128],
+    [0xb0, 7, NaN], [0xb0, 7, 63.5], [0xb0, 7.5, 50], [0x1b0, 7, 50],
+    [0xe0, 7, 100], [0xb0, 1, 127], [0xb0, 39, 100], [0xb0, 11, 100], [0xf0, 7, 100]]) r.input.send(...data);
+  assert.deepEqual(r.volumes, []);
+  assert.ok(r.instrument.exponents.every(value => value === 0));
+});
+
+test('only the selected connected MIDI input can change volume', async () => {
+  const a = new Input('a'), b = new Input('b'), r = await rig({ access: new Access([a, b]) });
+  b.send(0xb0, 7, 127); assert.deepEqual(r.volumes, []);
+  a.send(0xb0, 7, 0); assert.deepEqual(r.volumes, [0]);
+  r.midi.selectInput('b');
+  a.send(0xb0, 7, 127); assert.deepEqual(r.volumes, [0]);
+  b.send(0xb0, 7, 127); assert.deepEqual(r.volumes, [0, 1]);
+  b.state = 'disconnected'; r.access.change();
+  b.send(0xb0, 7, 0); assert.deepEqual(r.volumes, [0, 1]);
+  r.midi.disconnect(); r.midi.receive([0xb0, 7, 0]);
+  assert.deepEqual(r.volumes, [0, 1]);
 });
 
 test('empty-set MIDI key absorbs intersections, is neutral in unions, and releases back to the held cylinder', async () => {
@@ -175,7 +241,7 @@ test('calibration validates the 32-note range, ignores note-off, and can be canc
   r.input.send(0x90,96,100); assert.equal(r.instrument.exponents[0],1);
 });
 
-test('invalid data, unrelated controls and SysEx cannot trigger notes', async () => {
+test('invalid data, controller messages and SysEx cannot trigger notes', async () => {
   const r = await rig(); r.calibrate();
   for (const data of [[0x90,48], [0x90,48,128], [0x90,-1,100], [0x190,48,100], [-112,48,100],
     [0xe0,48,100], [0xb0,7,100], [0xa0,48,100], [0xf0,48,100], [0x90,48,NaN], [0x90,48.5,100]]) r.input.send(...data);

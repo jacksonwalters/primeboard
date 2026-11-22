@@ -1,5 +1,6 @@
 // USB MIDI is an input address: each consecutive note selects one instrument
-// slot. Pitches, amplitudes and Cantor operations remain owned by the instrument.
+// slot. Pitches, per-key strengths and Cantor operations remain owned by the
+// instrument; CC7 controls the overall output volume independently of notes.
 export const MIDI_SETTINGS_KEY = 'primeboard-midi-v1';
 export const MIDI_KEY_COUNT = 32;
 const validFirstNote = value => Number.isInteger(value) && value >= 0 && value <= 128 - MIDI_KEY_COUNT;
@@ -13,8 +14,8 @@ export function midiNoteLabel(note) {
 }
 
 export class MidiController {
-  constructor({ requestAccess, storage, onPress, onRelease, onChange = () => {}, canPlay = () => true }) {
-    Object.assign(this, { requestAccess, storage, onPress, onRelease, onChange, canPlay });
+  constructor({ requestAccess, storage, onPress, onRelease, onVolume = () => {}, onChange = () => {}, canPlay = () => true }) {
+    Object.assign(this, { requestAccess, storage, onPress, onRelease, onVolume, onChange, canPlay });
     this.access = null; this.input = null; this.failedInput = null; this.enabled = false; this.connecting = false;
     this.learning = false; this.firstNote = null; this.message = '';
     this.selectedId = ''; this.firstNotes = new Map(); this.storageWarning = false;
@@ -153,6 +154,9 @@ export class MidiController {
     const source = `midi:${this.input.id}:${channel}:${note}`;
     if (command === 0x80 || (command === 0x90 && value === 0)) { this.noteOff(source, channel); return; }
     if (command === 0xb0) {
+      // Volume must not use the note gate: adjusting a playing song should not
+      // take over playback, and moving the knob must not calibrate a key.
+      if (note === 7) { this.onVolume(value / 127); return; }
       if (note === 120) this.reset(channel);
       if (note === 123) for (const [id, voice] of this.active) if (voice.channel === channel) this.noteOff(id, channel);
       if (note === 64) {
