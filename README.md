@@ -3,6 +3,10 @@
 A playable keyboard of prime numbers, spectral light, and sine tones.
 Public app: **https://primeboard.jacksonwalters.com**.
 
+New contributor or fresh agent chat? Start with [AGENTS.md](AGENTS.md) for the
+working instructions and [STATE.md](STATE.md) for current releases, remaining
+work, and the source map. No previous conversation is needed.
+
 Primeboard remains the current name while we explore a more distinctive future
 name. See the [naming shortlist and trademark notes](docs/naming-shortlist.md).
 

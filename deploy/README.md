@@ -51,6 +51,23 @@ Repeat staging and the install command. Existing certificates are reused.
 Production files are under `/var/www/primeboard.jacksonwalters.com/releases/`;
 Nginx serves the `current` symlink. No dependency installation or app restart is needed.
 
+Staging alone is not a deployment. If noninteractive sudo reports that a password
+is required, the server administrator must run the interactive SSH command above
+and enter the password locally. A fresh clone does not include production access;
+`application_server` is an SSH alias configured on the maintainer's machine.
+
+After installation, verify the exact built home page with:
+
+```sh
+python3 deploy/verify-live.py dist/web/index.html
+```
+
+Also check the files and behavior affected by the release. For download-page
+updates, compare the public `download.html` with `dist/web/download.html`, confirm
+its desktop version, and verify the linked public installers and checksum file.
+Publish desktop assets before making their links live. Record the deployed
+version and verification result in [STATE.md](../STATE.md).
+
 Keep the old `rainboard` DNS record pointing here if you want old links to redirect.
 The old release and certificate webroot are retained for certificate renewal;
 they are no longer served as the app after migration.
